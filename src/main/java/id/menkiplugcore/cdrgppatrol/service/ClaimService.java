@@ -1,7 +1,10 @@
 package id.menkiplugcore.cdrgppatrol.service;
 
 import id.menkiplugcore.cdrgppatrol.model.ClaimSort;
+import id.menkiplugcore.cdrgppatrol.model.ClaimTrustSnapshot;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
+import id.menkiplugcore.cdrgppatrol.model.TrustEntry;
+import id.menkiplugcore.cdrgppatrol.model.TrustLevel;
 import me.ryanhamshire.GriefPrevention.Claim;
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.Bukkit;
@@ -81,6 +84,48 @@ public final class ClaimService {
         OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(ownerId);
         String name = offlinePlayer.getName();
         return name != null && !name.isBlank() ? name : ownerId.toString();
+    }
+
+    public ClaimTrustSnapshot getTrustSnapshot(Claim claim) {
+        ArrayList<String> builders = new ArrayList<>();
+        ArrayList<String> containers = new ArrayList<>();
+        ArrayList<String> accessors = new ArrayList<>();
+        ArrayList<String> managers = new ArrayList<>();
+
+        claim.getPermissions(builders, containers, accessors, managers);
+
+        return new ClaimTrustSnapshot(
+                trustEntries(managers, TrustLevel.MANAGER),
+                trustEntries(builders, TrustLevel.BUILD),
+                trustEntries(containers, TrustLevel.CONTAINER),
+                trustEntries(accessors, TrustLevel.ACCESS)
+        );
+    }
+
+    public String trustSubjectName(String rawSubject) {
+        if (rawSubject == null || rawSubject.isBlank()) {
+            return "Unknown";
+        }
+
+        if (rawSubject.equalsIgnoreCase("public")) {
+            return "Public / Everyone";
+        }
+
+        try {
+            UUID uuid = UUID.fromString(rawSubject);
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+            String name = offlinePlayer.getName();
+            return name != null && !name.isBlank() ? name : uuid.toString();
+        } catch (IllegalArgumentException ignored) {
+            return rawSubject;
+        }
+    }
+
+    private List<TrustEntry> trustEntries(List<String> subjects, TrustLevel level) {
+        return subjects.stream()
+                .map(raw -> new TrustEntry(raw, trustSubjectName(raw), level))
+                .sorted(Comparator.comparing(TrustEntry::displaySubject, String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     private List<Claim> rawClaims() {
