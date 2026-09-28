@@ -2,9 +2,11 @@ package id.menkiplugcore.cdrgppatrol.gui;
 
 import id.menkiplugcore.cdrgppatrol.CdrGPPatrol;
 import id.menkiplugcore.cdrgppatrol.model.ClaimTrustSnapshot;
+import id.menkiplugcore.cdrgppatrol.model.OwnerStatusSnapshot;
 import id.menkiplugcore.cdrgppatrol.service.ClaimBorderVisualizer;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.util.Colors;
+import id.menkiplugcore.cdrgppatrol.util.TimeUtil;
 import me.ryanhamshire.GriefPrevention.Claim;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -109,8 +111,26 @@ public final class ClaimInspectorMenu {
         }
 
         String owner = claimService.ownerName(claim);
+        OwnerStatusSnapshot status = claimService.ownerStatus(claim);
+
         lore.add("&7Owner: &f" + owner);
         lore.add("&7Owner UUID: &8" + claim.getOwnerID());
+
+        if (status != null) {
+            lore.add("");
+            lore.add("&7Status: " + (status.online() ? "&aONLINE" : "&cOFFLINE"));
+            if (!status.online()) {
+                if (status.hasKnownLastSeen()) {
+                    lore.add("&7Last Seen: &f" + TimeUtil.formatRelativePast(status.lastSeenMillis(), System.currentTimeMillis()));
+                    lore.add("&7Last Seen At: &f" + TimeUtil.formatAbsolute(status.lastSeenMillis()));
+                } else {
+                    lore.add("&7Last Seen: &8Unknown");
+                }
+            }
+            lore.add("&7Total Claims: &f" + status.claimCount());
+            lore.add("&7Total Area: &f" + status.totalArea() + " blocks");
+        }
+
         return item(Material.PLAYER_HEAD, "&a" + owner, lore);
     }
 

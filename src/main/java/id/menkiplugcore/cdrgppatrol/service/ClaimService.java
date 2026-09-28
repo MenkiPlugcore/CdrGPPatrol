@@ -2,6 +2,7 @@ package id.menkiplugcore.cdrgppatrol.service;
 
 import id.menkiplugcore.cdrgppatrol.model.ClaimSort;
 import id.menkiplugcore.cdrgppatrol.model.ClaimTrustSnapshot;
+import id.menkiplugcore.cdrgppatrol.model.OwnerStatusSnapshot;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
 import id.menkiplugcore.cdrgppatrol.model.TrustEntry;
 import id.menkiplugcore.cdrgppatrol.model.TrustLevel;
@@ -13,8 +14,10 @@ import org.bukkit.OfflinePlayer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public final class ClaimService {
@@ -84,6 +87,53 @@ public final class ClaimService {
         OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(ownerId);
         String name = offlinePlayer.getName();
         return name != null && !name.isBlank() ? name : ownerId.toString();
+    }
+
+    public Map<UUID, OwnerStatusSnapshot> ownerStatuses() {
+        List<Claim> claims = rawClaims();
+        Map<UUID, Integer> claimCounts = new HashMap<>();
+        Map<UUID, Long> totalAreas = new HashMap<>();
+
+        for (Claim claim : claims) {
+            if (claim.isAdminClaim() || claim.getOwnerID() == null) {
+                continue;
+            }
+
+            UUID ownerId = claim.getOwnerID();
+            claimCounts.merge(ownerId, 1, Integer::sum);
+            totalAreas.merge(ownerId, (long) claim.getArea(), Long::sum);
+        }
+
+        Map<UUID, OwnerStatusSnapshot> result = new HashMap<>();
+        long now = System.currentTimeMillis();
+
+        for (Map.Entry<UUID, Integer> entry : claimCounts.entrySet()) {
+            UUID ownerId = entry.getKey();
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(ownerId);
+            String name = offlinePlayer.getName();
+            boolean online = offlinePlayer.isOnline();
+            long lastSeen = online ? now : offlinePlayer.getLastPlayed();
+            boolean hasPlayedBefore = online || offlinePlayer.hasPlayedBefore() || lastSeen > 0L;
+
+            result.put(ownerId, new OwnerStatusSnapshot(
+                    ownerId,
+                    name != null && !name.isBlank() ? name : ownerId.toString(),
+                    online,
+                    hasPlayedBefore,
+                    lastSeen,
+                    entry.getValue(),
+                    totalAreas.getOrDefault(ownerId, 0L)
+            ));
+        }
+
+        return result;
+    }
+
+    public OwnerStatusSnapshot ownerStatus(Claim claim) {
+        if (claim == null || claim.isAdminClaim() || claim.getOwnerID() == null) {
+            return null;
+        }
+        return ownerStatuses().get(claim.getOwnerID());
     }
 
     public ClaimTrustSnapshot getTrustSnapshot(Claim claim) {

@@ -2,10 +2,12 @@ package id.menkiplugcore.cdrgppatrol.gui;
 
 import id.menkiplugcore.cdrgppatrol.CdrGPPatrol;
 import id.menkiplugcore.cdrgppatrol.model.ClaimSort;
+import id.menkiplugcore.cdrgppatrol.model.OwnerStatusSnapshot;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
 import id.menkiplugcore.cdrgppatrol.util.Colors;
+import id.menkiplugcore.cdrgppatrol.util.TimeUtil;
 import me.ryanhamshire.GriefPrevention.Claim;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -17,6 +19,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public final class PatrolMenu {
     public static final int PAGE_SIZE = 45;
@@ -43,6 +47,7 @@ public final class PatrolMenu {
     public void open(Player player, int requestedPage) {
         PatrolState state = sessionService.state(player);
         List<Claim> claims = claimService.getClaims(state);
+        Map<UUID, OwnerStatusSnapshot> ownerStatuses = claimService.ownerStatuses();
         int totalPages = Math.max(1, (int) Math.ceil(claims.size() / (double) PAGE_SIZE));
         int page = Math.max(1, Math.min(requestedPage, totalPages));
 
@@ -60,7 +65,8 @@ public final class PatrolMenu {
 
         for (int index = start; index < end; index++) {
             Claim claim = claims.get(index);
-            inventory.setItem(slot, createClaimItem(claim));
+            OwnerStatusSnapshot ownerStatus = claim.getOwnerID() == null ? null : ownerStatuses.get(claim.getOwnerID());
+            inventory.setItem(slot, createClaimItem(claim, ownerStatus));
             holder.bind(slot, claim);
             slot++;
         }
@@ -147,7 +153,7 @@ public final class PatrolMenu {
         return item(Material.BOOK, "&fFilter Summary", lore);
     }
 
-    private ItemStack createClaimItem(Claim claim) {
+    private ItemStack createClaimItem(Claim claim, OwnerStatusSnapshot ownerStatus) {
         String owner = claimService.ownerName(claim);
         World world = claim.getLesserBoundaryCorner().getWorld();
 
@@ -164,6 +170,17 @@ public final class PatrolMenu {
         lore.add("&7Center: &b" + centerX + "&7, &b" + centerZ);
         lore.add("&7Ukuran: &f" + claim.getWidth() + " x " + claim.getHeight());
         lore.add("&7Area: &f" + claim.getArea() + " blocks");
+
+        if (!claim.isAdminClaim() && ownerStatus != null) {
+            lore.add("");
+            lore.add("&7Owner Status: " + (ownerStatus.online() ? "&aONLINE" : "&cOFFLINE"));
+            if (!ownerStatus.online()) {
+                lore.add("&7Last Seen: &f" + TimeUtil.formatRelativePast(ownerStatus.lastSeenMillis(), System.currentTimeMillis()));
+            }
+            lore.add("&7Owner Claims: &f" + ownerStatus.claimCount());
+            lore.add("&7Owner Total Area: &f" + ownerStatus.totalArea() + " blocks");
+        }
+
         lore.add("");
         lore.add("&eKlik kiri &7untuk teleport");
         lore.add("&bKlik kanan &7untuk inspect claim");
