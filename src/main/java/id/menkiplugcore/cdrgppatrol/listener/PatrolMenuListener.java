@@ -1,8 +1,12 @@
 package id.menkiplugcore.cdrgppatrol.listener;
 
 import id.menkiplugcore.cdrgppatrol.CdrGPPatrol;
+import id.menkiplugcore.cdrgppatrol.gui.ClaimInspectorHolder;
+import id.menkiplugcore.cdrgppatrol.gui.ClaimInspectorMenu;
 import id.menkiplugcore.cdrgppatrol.gui.PatrolMenu;
 import id.menkiplugcore.cdrgppatrol.gui.PatrolMenuHolder;
+import id.menkiplugcore.cdrgppatrol.gui.TrustMenu;
+import id.menkiplugcore.cdrgppatrol.gui.TrustMenuHolder;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
@@ -14,20 +18,26 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.InventoryHolder;
 
 import java.util.List;
 
 public final class PatrolMenuListener implements Listener {
     private final CdrGPPatrol plugin;
     private final PatrolMenu patrolMenu;
+    private final ClaimInspectorMenu inspectorMenu;
+    private final TrustMenu trustMenu;
     private final TeleportService teleportService;
     private final ClaimService claimService;
     private final PatrolSessionService sessionService;
 
-    public PatrolMenuListener(CdrGPPatrol plugin, PatrolMenu patrolMenu, TeleportService teleportService,
+    public PatrolMenuListener(CdrGPPatrol plugin, PatrolMenu patrolMenu, ClaimInspectorMenu inspectorMenu,
+                              TrustMenu trustMenu, TeleportService teleportService,
                               ClaimService claimService, PatrolSessionService sessionService) {
         this.plugin = plugin;
         this.patrolMenu = patrolMenu;
+        this.inspectorMenu = inspectorMenu;
+        this.trustMenu = trustMenu;
         this.teleportService = teleportService;
         this.claimService = claimService;
         this.sessionService = sessionService;
@@ -35,7 +45,10 @@ public final class PatrolMenuListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof PatrolMenuHolder holder)) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof PatrolMenuHolder)
+                && !(topHolder instanceof ClaimInspectorHolder)
+                && !(topHolder instanceof TrustMenuHolder)) {
             return;
         }
 
@@ -49,6 +62,22 @@ public final class PatrolMenuListener implements Listener {
             return;
         }
 
+        if (topHolder instanceof PatrolMenuHolder holder) {
+            handlePatrolClick(event, player, holder, rawSlot);
+            return;
+        }
+
+        if (topHolder instanceof ClaimInspectorHolder holder) {
+            handleInspectorClick(player, holder, rawSlot);
+            return;
+        }
+
+        if (topHolder instanceof TrustMenuHolder holder) {
+            handleTrustClick(player, holder, rawSlot);
+        }
+    }
+
+    private void handlePatrolClick(InventoryClickEvent event, Player player, PatrolMenuHolder holder, int rawSlot) {
         PatrolState state = sessionService.state(player);
 
         if (rawSlot == PatrolMenu.PREVIOUS_SLOT && holder.page() > 1) {
@@ -107,15 +136,61 @@ public final class PatrolMenuListener implements Listener {
         }
 
         Claim claim = holder.claimAt(rawSlot);
-        if (claim != null) {
+        if (claim == null) {
+            return;
+        }
+
+        if (event.isRightClick()) {
+            inspectorMenu.open(player, claim, holder.page());
+        } else {
             player.closeInventory();
             teleportService.teleport(player, claim);
         }
     }
 
+    private void handleInspectorClick(Player player, ClaimInspectorHolder holder, int rawSlot) {
+        Claim claim = holder.claim();
+
+        if (rawSlot == ClaimInspectorMenu.TELEPORT_SLOT) {
+            player.closeInventory();
+            teleportService.teleport(player, claim);
+            return;
+        }
+
+        if (rawSlot == ClaimInspectorMenu.TRUST_VIEWER_SLOT) {
+            if (claimService.getTrustSnapshot(claim).totalEntries() > 0) {
+                trustMenu.open(player, claim, holder.sourcePage(), 1);
+            }
+            return;
+        }
+
+        if (rawSlot == ClaimInspectorMenu.BACK_SLOT) {
+            patrolMenu.open(player, holder.sourcePage());
+        }
+    }
+
+    private void handleTrustClick(Player player, TrustMenuHolder holder, int rawSlot) {
+        if (rawSlot == TrustMenu.PREVIOUS_SLOT && holder.page() > 1) {
+            trustMenu.open(player, holder.claim(), holder.sourcePage(), holder.page() - 1);
+            return;
+        }
+
+        if (rawSlot == TrustMenu.BACK_SLOT) {
+            inspectorMenu.open(player, holder.claim(), holder.sourcePage());
+            return;
+        }
+
+        if (rawSlot == TrustMenu.NEXT_SLOT && holder.page() < holder.totalPages()) {
+            trustMenu.open(player, holder.claim(), holder.sourcePage(), holder.page() + 1);
+        }
+    }
+
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof PatrolMenuHolder) {
+        InventoryHolder holder = event.getView().getTopInventory().getHolder();
+        if (holder instanceof PatrolMenuHolder
+                || holder instanceof ClaimInspectorHolder
+                || holder instanceof TrustMenuHolder) {
             event.setCancelled(true);
         }
     }
