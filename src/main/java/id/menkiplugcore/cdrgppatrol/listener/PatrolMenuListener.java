@@ -8,6 +8,7 @@ import id.menkiplugcore.cdrgppatrol.gui.PatrolMenuHolder;
 import id.menkiplugcore.cdrgppatrol.gui.TrustMenu;
 import id.menkiplugcore.cdrgppatrol.gui.TrustMenuHolder;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
+import id.menkiplugcore.cdrgppatrol.service.ClaimBorderVisualizer;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
 import id.menkiplugcore.cdrgppatrol.service.TeleportService;
@@ -28,17 +29,20 @@ public final class PatrolMenuListener implements Listener {
     private final ClaimInspectorMenu inspectorMenu;
     private final TrustMenu trustMenu;
     private final TeleportService teleportService;
+    private final ClaimBorderVisualizer borderVisualizer;
     private final ClaimService claimService;
     private final PatrolSessionService sessionService;
 
     public PatrolMenuListener(CdrGPPatrol plugin, PatrolMenu patrolMenu, ClaimInspectorMenu inspectorMenu,
                               TrustMenu trustMenu, TeleportService teleportService,
-                              ClaimService claimService, PatrolSessionService sessionService) {
+                              ClaimBorderVisualizer borderVisualizer, ClaimService claimService,
+                              PatrolSessionService sessionService) {
         this.plugin = plugin;
         this.patrolMenu = patrolMenu;
         this.inspectorMenu = inspectorMenu;
         this.trustMenu = trustMenu;
         this.teleportService = teleportService;
+        this.borderVisualizer = borderVisualizer;
         this.claimService = claimService;
         this.sessionService = sessionService;
     }
@@ -151,6 +155,12 @@ public final class PatrolMenuListener implements Listener {
     private void handleInspectorClick(Player player, ClaimInspectorHolder holder, int rawSlot) {
         Claim claim = holder.claim();
 
+        if (rawSlot == ClaimInspectorMenu.VISUALIZE_SLOT) {
+            borderVisualizer.toggle(player, claim);
+            inspectorMenu.open(player, claim, holder.sourcePage());
+            return;
+        }
+
         if (rawSlot == ClaimInspectorMenu.TELEPORT_SLOT) {
             player.closeInventory();
             teleportService.teleport(player, claim);
@@ -197,6 +207,7 @@ public final class PatrolMenuListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        borderVisualizer.stop(event.getPlayer().getUniqueId());
         sessionService.remove(event.getPlayer());
     }
 

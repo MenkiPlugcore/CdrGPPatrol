@@ -8,7 +8,7 @@ Administrative claim browser and patrol addon for **GriefPrevention**.
 - Paper 1.21.10+ / 1.21.11
 - GriefPrevention 16.18.7
 
-## v1.2.0 Features
+## v1.3.0 Features
 
 - `/gppatrol [page]` GUI browser with 45 claims per page.
 - Search claim owners with `/gppatrol search <player>`.
@@ -21,6 +21,12 @@ Administrative claim browser and patrol addon for **GriefPrevention**.
 - Native GriefPrevention trust summary for Manager, Build, Container, and Access permissions.
 - Read-only **Trust Viewer** with pagination for large trust lists.
 - UUID trust entries are resolved to offline player names when available; non-player/public entries remain visible.
+- **Claim Border Visualizer** from the Claim Inspector.
+- Border particles are visible only to the admin who activated them.
+- Border rendering follows terrain height and highlights all four corners with vertical particle pillars.
+- Adaptive particle spacing keeps very large claims within a configurable particle budget.
+- Visualizations auto-expire, can be toggled off from the Inspector, stop on logout/world change, and are cleaned up when the plugin disables.
+- Visualizer refuses activation when the admin is in another world or too far from the claim.
 - Safe teleport search rejects common hazards and stays inside claim boundaries.
 - `/gppatroldebug` diagnostics with the first 10 claims.
 - No Skript or SkBee dependency.
@@ -31,12 +37,30 @@ Administrative claim browser and patrol addon for **GriefPrevention**.
 /gppatrol
   -> Left Click claim  = Safe Teleport
   -> Right Click claim = Claim Inspector
+       -> Visualize Border
        -> Safe Teleport
        -> View Trust
        -> Back to Patrol
 ```
 
-Trust Viewer is intentionally read-only in v1.2.0. It does not add, remove, or modify GriefPrevention permissions.
+The border visualizer is intentionally client-scoped: it sends particles only to the admin who enabled it and does not modify blocks or GriefPrevention claim data.
+
+## Visualizer Defaults
+
+```yaml
+visualizer:
+  duration-seconds: 15
+  refresh-ticks: 10
+  spacing: 2
+  max-points-per-pass: 320
+  max-distance: 96
+  corner-pillar-height: 4.0
+  particle-size: 1.0
+  color:
+    red: 40
+    green: 210
+    blue: 255
+```
 
 ## Commands
 
@@ -60,12 +84,12 @@ Trust Viewer is intentionally read-only in v1.2.0. It does not add, remove, or m
 mvn package
 ```
 
-Output: `target/CdrGPPatrol-1.2.0.jar`
+Output: `target/CdrGPPatrol-1.3.0.jar`
 
 ## Install
 
 1. Install GriefPrevention 16.18.7.
-2. Put `CdrGPPatrol-1.2.0.jar` in `plugins/`.
+2. Put `CdrGPPatrol-1.3.0.jar` in `plugins/`.
 3. Restart the server.
 4. Run `/gppatrol`.
 

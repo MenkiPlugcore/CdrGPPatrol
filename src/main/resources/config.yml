@@ -8,3 +8,17 @@ teleport:
   # center is unsafe. The search always stays inside the claim boundaries.
   search-radius: 12
   reject-hazards: true
+
+visualizer:
+  # Border particles are sent only to the admin who activates the visualizer.
+  duration-seconds: 15
+  refresh-ticks: 10
+  spacing: 2
+  max-points-per-pass: 320
+  max-distance: 96
+  corner-pillar-height: 4.0
+  particle-size: 1.0
+  color:
+    red: 40
+    green: 210
+    blue: 255

@@ -2,6 +2,7 @@ package id.menkiplugcore.cdrgppatrol.gui;
 
 import id.menkiplugcore.cdrgppatrol.CdrGPPatrol;
 import id.menkiplugcore.cdrgppatrol.model.ClaimTrustSnapshot;
+import id.menkiplugcore.cdrgppatrol.service.ClaimBorderVisualizer;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.util.Colors;
 import me.ryanhamshire.GriefPrevention.Claim;
@@ -24,6 +25,7 @@ public final class ClaimInspectorMenu {
     public static final int INFO_SLOT = 11;
     public static final int BOUNDS_SLOT = 12;
     public static final int TRUST_SUMMARY_SLOT = 13;
+    public static final int VISUALIZE_SLOT = 14;
     public static final int TELEPORT_SLOT = 15;
     public static final int TRUST_VIEWER_SLOT = 16;
     public static final int BACK_SLOT = 22;
@@ -33,10 +35,13 @@ public final class ClaimInspectorMenu {
 
     private final CdrGPPatrol plugin;
     private final ClaimService claimService;
+    private final ClaimBorderVisualizer borderVisualizer;
 
-    public ClaimInspectorMenu(CdrGPPatrol plugin, ClaimService claimService) {
+    public ClaimInspectorMenu(CdrGPPatrol plugin, ClaimService claimService,
+                              ClaimBorderVisualizer borderVisualizer) {
         this.plugin = plugin;
         this.claimService = claimService;
+        this.borderVisualizer = borderVisualizer;
     }
 
     public void open(Player player, Claim claim, int sourcePage) {
@@ -54,6 +59,7 @@ public final class ClaimInspectorMenu {
         inventory.setItem(INFO_SLOT, infoItem(claim));
         inventory.setItem(BOUNDS_SLOT, boundsItem(claim));
         inventory.setItem(TRUST_SUMMARY_SLOT, trustSummaryItem(trust));
+        inventory.setItem(VISUALIZE_SLOT, visualizerItem(player, claim));
         inventory.setItem(TELEPORT_SLOT, item(Material.ENDER_PEARL, "&bSafe Teleport", List.of(
                 "&7Teleport ke lokasi aman di dalam claim.",
                 "",
@@ -72,6 +78,26 @@ public final class ClaimInspectorMenu {
         )));
 
         player.openInventory(inventory);
+    }
+
+    private ItemStack visualizerItem(Player player, Claim claim) {
+        if (borderVisualizer.isVisualizing(player, claim)) {
+            return item(Material.REDSTONE, "&cStop Border Visualizer", List.of(
+                    "&7Border claim sedang aktif untukmu.",
+                    "&7Sisa waktu: &f" + borderVisualizer.remainingSeconds(player, claim) + " detik",
+                    "",
+                    "&cKlik untuk berhenti"
+            ));
+        }
+
+        int duration = Math.max(3, plugin.getConfig().getInt("visualizer.duration-seconds", 15));
+        return item(Material.BEACON, "&bVisualize Border", List.of(
+                "&7Tampilkan perimeter claim dengan particle.",
+                "&7Hanya kamu yang melihat visualisasi ini.",
+                "&7Durasi: &f" + duration + " detik",
+                "",
+                "&eKlik untuk menampilkan"
+        ));
     }
 
     private ItemStack ownerItem(Claim claim) {
