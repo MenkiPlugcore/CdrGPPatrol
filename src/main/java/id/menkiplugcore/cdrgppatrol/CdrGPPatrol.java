@@ -2,7 +2,9 @@ package id.menkiplugcore.cdrgppatrol;
 
 import id.menkiplugcore.cdrgppatrol.command.PatrolCommand;
 import id.menkiplugcore.cdrgppatrol.command.PatrolDebugCommand;
+import id.menkiplugcore.cdrgppatrol.gui.ClaimInspectorMenu;
 import id.menkiplugcore.cdrgppatrol.gui.PatrolMenu;
+import id.menkiplugcore.cdrgppatrol.gui.TrustMenu;
 import id.menkiplugcore.cdrgppatrol.listener.PatrolMenuListener;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
@@ -17,6 +19,8 @@ public final class CdrGPPatrol extends JavaPlugin {
     private PatrolSessionService sessionService;
     private TeleportService teleportService;
     private PatrolMenu patrolMenu;
+    private ClaimInspectorMenu inspectorMenu;
+    private TrustMenu trustMenu;
 
     @Override
     public void onEnable() {
@@ -32,6 +36,8 @@ public final class CdrGPPatrol extends JavaPlugin {
         this.sessionService = new PatrolSessionService();
         this.teleportService = new TeleportService(this, claimService);
         this.patrolMenu = new PatrolMenu(this, claimService, sessionService);
+        this.inspectorMenu = new ClaimInspectorMenu(this, claimService);
+        this.trustMenu = new TrustMenu(this, claimService);
 
         PluginCommand patrolCommand = getCommand("gppatrol");
         PluginCommand debugCommand = getCommand("gppatroldebug");
@@ -47,7 +53,8 @@ public final class CdrGPPatrol extends JavaPlugin {
         debugCommand.setExecutor(new PatrolDebugCommand(this, claimService));
 
         getServer().getPluginManager().registerEvents(
-                new PatrolMenuListener(this, patrolMenu, teleportService, claimService, sessionService), this
+                new PatrolMenuListener(this, patrolMenu, inspectorMenu, trustMenu,
+                        teleportService, claimService, sessionService), this
         );
 
         getLogger().info("CdrGPPatrol v" + getPluginMeta().getVersion()
