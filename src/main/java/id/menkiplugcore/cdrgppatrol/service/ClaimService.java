@@ -1,5 +1,6 @@
 package id.menkiplugcore.cdrgppatrol.service;
 
+import id.menkiplugcore.cdrgppatrol.model.AbandonedScanStats;
 import id.menkiplugcore.cdrgppatrol.model.ClaimSort;
 import id.menkiplugcore.cdrgppatrol.model.ClaimTrustSnapshot;
 import id.menkiplugcore.cdrgppatrol.model.OwnerStatusSnapshot;
@@ -15,17 +16,28 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class ClaimService {
+    private static final long DAY_MILLIS = 86_400_000L;
+
     public List<Claim> getClaims() {
         return getClaims(new PatrolState());
     }
 
     public List<Claim> getClaims(PatrolState state) {
+        Map<UUID, OwnerStatusSnapshot> statuses = state.hasAbandonedScanner()
+                ? ownerStatuses()
+                : Map.of();
+        return getClaims(state, statuses);
+    }
+
+    public List<Claim> getClaims(PatrolState state, Map<UUID, OwnerStatusSnapshot> ownerStatuses) {
         List<Claim> claims = rawClaims();
         if (claims.isEmpty()) {
             return claims;
@@ -44,8 +56,33 @@ public final class ClaimService {
             claims.removeIf(claim -> !ownerName(claim).toLowerCase(Locale.ROOT).contains(ownerQuery));
         }
 
-        claims.sort(comparator(state.sort()));
+        if (state.hasAbandonedScanner()) {
+            long now = System.currentTimeMillis();
+            long thresholdMillis = Math.multiplyExact((long) state.abandonedDays(), DAY_MILLIS);
+            claims.removeIf(claim -> !isAbandonedCandidate(claim, ownerStatuses, now, thresholdMillis));
+            claims.sort(Comparator
+                    .comparingLong((Claim claim) -> ownerStatuses.get(claim.getOwnerID()).lastSeenMillis())
+                    .thenComparingLong(this::claimIdValue));
+        } else {
+            claims.sort(comparator(state.sort()));
+        }
         return claims;
+    }
+
+    public AbandonedScanStats abandonedStats(List<Claim> claims) {
+        if (claims == null || claims.isEmpty()) {
+            return new AbandonedScanStats(0, 0, 0L);
+        }
+
+        Set<UUID> owners = new HashSet<>();
+        long totalArea = 0L;
+        for (Claim claim : claims) {
+            if (claim.getOwnerID() != null) {
+                owners.add(claim.getOwnerID());
+            }
+            totalArea += claim.getArea();
+        }
+        return new AbandonedScanStats(claims.size(), owners.size(), totalArea);
     }
 
     public List<String> worldNames() {
@@ -169,6 +206,19 @@ public final class ClaimService {
         } catch (IllegalArgumentException ignored) {
             return rawSubject;
         }
+    }
+
+    private boolean isAbandonedCandidate(Claim claim, Map<UUID, OwnerStatusSnapshot> ownerStatuses,
+                                         long nowMillis, long thresholdMillis) {
+        if (claim.isAdminClaim() || claim.getOwnerID() == null) {
+            return false;
+        }
+
+        OwnerStatusSnapshot status = ownerStatuses.get(claim.getOwnerID());
+        if (status == null || status.online() || !status.hasKnownLastSeen()) {
+            return false;
+        }
+        return status.offlineForMillis(nowMillis) >= thresholdMillis;
     }
 
     private List<TrustEntry> trustEntries(List<String> subjects, TrustLevel level) {

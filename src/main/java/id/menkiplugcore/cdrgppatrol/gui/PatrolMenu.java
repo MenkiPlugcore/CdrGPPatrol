@@ -1,6 +1,7 @@
 package id.menkiplugcore.cdrgppatrol.gui;
 
 import id.menkiplugcore.cdrgppatrol.CdrGPPatrol;
+import id.menkiplugcore.cdrgppatrol.model.AbandonedScanStats;
 import id.menkiplugcore.cdrgppatrol.model.ClaimSort;
 import id.menkiplugcore.cdrgppatrol.model.OwnerStatusSnapshot;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
@@ -46,14 +47,15 @@ public final class PatrolMenu {
 
     public void open(Player player, int requestedPage) {
         PatrolState state = sessionService.state(player);
-        List<Claim> claims = claimService.getClaims(state);
         Map<UUID, OwnerStatusSnapshot> ownerStatuses = claimService.ownerStatuses();
+        List<Claim> claims = claimService.getClaims(state, ownerStatuses);
         int totalPages = Math.max(1, (int) Math.ceil(claims.size() / (double) PAGE_SIZE));
         int page = Math.max(1, Math.min(requestedPage, totalPages));
 
         String baseTitle = plugin.getConfig().getString("menu-title", "&8GP Patrol");
         String filterMarker = state.hasFilters() ? " &e*" : "";
-        String title = Colors.color(baseTitle + " &7Page " + page + "/" + totalPages + filterMarker);
+        String scannerMarker = state.hasAbandonedScanner() ? " &cA" + state.abandonedDays() + "d" : "";
+        String title = Colors.color(baseTitle + " &7Page " + page + "/" + totalPages + filterMarker + scannerMarker);
 
         PatrolMenuHolder holder = new PatrolMenuHolder(page, totalPages);
         Inventory inventory = Bukkit.createInventory(holder, 54, title);
@@ -66,15 +68,25 @@ public final class PatrolMenu {
         for (int index = start; index < end; index++) {
             Claim claim = claims.get(index);
             OwnerStatusSnapshot ownerStatus = claim.getOwnerID() == null ? null : ownerStatuses.get(claim.getOwnerID());
-            inventory.setItem(slot, createClaimItem(claim, ownerStatus));
+            inventory.setItem(slot, createClaimItem(claim, ownerStatus, state));
             holder.bind(slot, claim);
             slot++;
         }
 
         if (claims.isEmpty()) {
-            List<String> emptyLore = state.hasFilters()
-                    ? List.of("&7Tidak ada claim yang cocok dengan filter aktif.", "", "&eKlik Reset Filters untuk menampilkan semua claim.")
-                    : List.of("&7Belum ada claim yang terbaca dari GriefPrevention.");
+            List<String> emptyLore;
+            if (state.hasAbandonedScanner()) {
+                emptyLore = List.of(
+                        "&7Tidak ada abandoned candidate untuk threshold &f" + state.abandonedDays() + " hari&7.",
+                        "&7Owner online dan last-seen unknown selalu dikecualikan.",
+                        "",
+                        "&eKlik Scanner untuk ganti threshold."
+                );
+            } else if (state.hasFilters()) {
+                emptyLore = List.of("&7Tidak ada claim yang cocok dengan filter aktif.", "", "&eKlik Reset Filters untuk menampilkan semua claim.");
+            } else {
+                emptyLore = List.of("&7Belum ada claim yang terbaca dari GriefPrevention.");
+            }
             inventory.setItem(22, item(Material.BARRIER, "&cTidak ada claim", emptyLore));
         }
 
@@ -91,7 +103,7 @@ public final class PatrolMenu {
 
         inventory.setItem(SORT_SLOT, sortItem(state));
         inventory.setItem(RESET_SLOT, resetItem(state));
-        inventory.setItem(SUMMARY_SLOT, summaryItem(state, claims.size()));
+        inventory.setItem(SUMMARY_SLOT, summaryItem(state, claims));
 
         inventory.setItem(NEXT_SLOT, page < totalPages
                 ? item(Material.ARROW, "&eNext Page", List.of("&7Klik untuk halaman berikutnya"))
@@ -123,12 +135,19 @@ public final class PatrolMenu {
     private ItemStack typeItem(PatrolState state) {
         return item(Material.GOLDEN_SHOVEL, "&6Claim Type", List.of(
                 "&7Aktif: &f" + state.claimType().displayName(),
-                "",
+                state.hasAbandonedScanner() ? "&8Scanner hanya menampilkan Player Claim." : "",
                 "&eKlik &7untuk ganti tipe claim"
         ));
     }
 
     private ItemStack sortItem(PatrolState state) {
+        if (state.hasAbandonedScanner()) {
+            return item(Material.CLOCK, "&dSorting", List.of(
+                    "&7Urutan: &fOldest Offline",
+                    "&7Scanner mengunci urutan agar candidate",
+                    "&7paling lama offline muncul lebih dulu."
+            ));
+        }
         return item(Material.HOPPER, "&dSorting", List.of(
                 "&7Urutan: &f" + state.sort().displayName(),
                 "",
@@ -139,21 +158,41 @@ public final class PatrolMenu {
     private ItemStack resetItem(PatrolState state) {
         boolean changed = state.hasFilters() || state.sort() != ClaimSort.WORLD_ID;
         return changed
-                ? item(Material.BARRIER, "&cReset Filters", List.of("&7Hapus search, filter, dan sorting."))
+                ? item(Material.BARRIER, "&cReset Filters", List.of("&7Hapus search, filter, sorting, dan scanner."))
                 : item(Material.GRAY_DYE, "&8Reset Filters", List.of("&7Filter masih default."));
     }
 
-    private ItemStack summaryItem(PatrolState state, int resultCount) {
+    private ItemStack summaryItem(PatrolState state, List<Claim> claims) {
         List<String> lore = new ArrayList<>();
-        lore.add("&7Hasil claim: &f" + resultCount);
         lore.add("&7Search: " + (state.hasSearch() ? "&f" + state.ownerQuery() : "&8Off"));
         lore.add("&7World: " + (state.hasWorldFilter() ? "&f" + state.worldName() : "&8Semua"));
         lore.add("&7Type: &f" + state.claimType().displayName());
+
+        if (state.hasAbandonedScanner()) {
+            AbandonedScanStats stats = claimService.abandonedStats(claims);
+            lore.add("");
+            lore.add("&cAbandoned Scanner: &f" + state.abandonedDays() + "d+");
+            lore.add("&7Candidate claims: &f" + stats.claimCount());
+            lore.add("&7Unique owners: &f" + stats.ownerCount());
+            lore.add("&7Candidate area: &f" + stats.totalArea() + " blocks");
+            lore.add("&7Order: &fOldest Offline First");
+            lore.add("");
+            lore.add("&eKlik kiri &7cycle 7d → 30d → 60d → 90d → off");
+            lore.add("&cKlik kanan &7matikan scanner");
+            lore.add("&8Custom: /gppatrol abandoned <days>d");
+            return item(Material.RECOVERY_COMPASS, "&cAbandoned Scanner", lore);
+        }
+
         lore.add("&7Sort: &f" + state.sort().displayName());
-        return item(Material.BOOK, "&fFilter Summary", lore);
+        lore.add("&7Hasil claim: &f" + claims.size());
+        lore.add("");
+        lore.add("&7Scanner: &8Off");
+        lore.add("&eKlik &7untuk mulai scan 7 hari");
+        lore.add("&8Command: /gppatrol abandoned 30d");
+        return item(Material.CLOCK, "&fFilter Summary / Scanner", lore);
     }
 
-    private ItemStack createClaimItem(Claim claim, OwnerStatusSnapshot ownerStatus) {
+    private ItemStack createClaimItem(Claim claim, OwnerStatusSnapshot ownerStatus, PatrolState state) {
         String owner = claimService.ownerName(claim);
         World world = claim.getLesserBoundaryCorner().getWorld();
 
@@ -165,6 +204,9 @@ public final class PatrolMenu {
         int centerZ = Math.floorDiv(z1 + z2, 2);
 
         List<String> lore = new ArrayList<>();
+        if (state.hasAbandonedScanner()) {
+            lore.add("&c⚠ Abandoned Candidate &7(" + state.abandonedDays() + "d+)");
+        }
         lore.add("&7Claim ID: &f" + (claim.getID() == null ? "N/A" : claim.getID()));
         lore.add("&7World: &e" + world.getName());
         lore.add("&7Center: &b" + centerX + "&7, &b" + centerZ);
@@ -185,7 +227,14 @@ public final class PatrolMenu {
         lore.add("&eKlik kiri &7untuk teleport");
         lore.add("&bKlik kanan &7untuk inspect claim");
 
-        Material icon = claim.isAdminClaim() ? Material.GOLD_BLOCK : Material.GRASS_BLOCK;
+        Material icon;
+        if (claim.isAdminClaim()) {
+            icon = Material.GOLD_BLOCK;
+        } else if (state.hasAbandonedScanner()) {
+            icon = Material.MOSSY_COBBLESTONE;
+        } else {
+            icon = Material.GRASS_BLOCK;
+        }
         return item(icon, claim.isAdminClaim() ? "&6Admin Claim" : "&a" + owner, lore);
     }
 
@@ -193,7 +242,7 @@ public final class PatrolMenu {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
         meta.setDisplayName(Colors.color(name));
-        meta.setLore(lore.stream().map(Colors::color).toList());
+        meta.setLore(lore.stream().filter(line -> line != null && !line.isEmpty()).map(Colors::color).toList());
         stack.setItemMeta(meta);
         return stack;
     }

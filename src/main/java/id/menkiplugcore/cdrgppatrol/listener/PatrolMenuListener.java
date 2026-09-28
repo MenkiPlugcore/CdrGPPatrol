@@ -7,6 +7,7 @@ import id.menkiplugcore.cdrgppatrol.gui.PatrolMenu;
 import id.menkiplugcore.cdrgppatrol.gui.PatrolMenuHolder;
 import id.menkiplugcore.cdrgppatrol.gui.TrustMenu;
 import id.menkiplugcore.cdrgppatrol.gui.TrustMenuHolder;
+import id.menkiplugcore.cdrgppatrol.model.ClaimType;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
 import id.menkiplugcore.cdrgppatrol.service.ClaimBorderVisualizer;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
@@ -108,7 +109,12 @@ public final class PatrolMenuListener implements Listener {
         }
 
         if (rawSlot == PatrolMenu.TYPE_SLOT) {
-            state.claimType(state.claimType().next());
+            if (state.hasAbandonedScanner()) {
+                state.claimType(ClaimType.PLAYER);
+                player.sendMessage(plugin.prefix() + " §7Abandoned Scanner hanya memproses §fPlayer Claim§7.");
+            } else {
+                state.claimType(state.claimType().next());
+            }
             patrolMenu.open(player, 1);
             return;
         }
@@ -119,7 +125,11 @@ public final class PatrolMenuListener implements Listener {
         }
 
         if (rawSlot == PatrolMenu.SORT_SLOT) {
-            state.sort(state.sort().next());
+            if (state.hasAbandonedScanner()) {
+                player.sendMessage(plugin.prefix() + " §7Scanner mengunci sorting ke §fOldest Offline First§7.");
+            } else {
+                state.sort(state.sort().next());
+            }
             patrolMenu.open(player, 1);
             return;
         }
@@ -131,6 +141,12 @@ public final class PatrolMenuListener implements Listener {
         }
 
         if (rawSlot == PatrolMenu.SUMMARY_SLOT) {
+            if (event.isRightClick()) {
+                state.abandonedDays(0);
+            } else {
+                state.cycleAbandonedPreset();
+            }
+            patrolMenu.open(player, 1);
             return;
         }
 

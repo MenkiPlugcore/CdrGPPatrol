@@ -7,6 +7,7 @@ import id.menkiplugcore.cdrgppatrol.model.ClaimType;
 import id.menkiplugcore.cdrgppatrol.model.PatrolState;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
 import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
+import id.menkiplugcore.cdrgppatrol.util.DurationParser;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class PatrolCommand implements CommandExecutor, TabCompleter {
-    private static final List<String> ROOT_OPTIONS = List.of("search", "world", "type", "sort", "reset");
+    private static final List<String> ROOT_OPTIONS = List.of("search", "world", "type", "sort", "abandoned", "reset");
 
     private final CdrGPPatrol plugin;
     private final PatrolMenu patrolMenu;
@@ -67,9 +68,10 @@ public final class PatrolCommand implements CommandExecutor, TabCompleter {
             case "world" -> handleWorld(player, label, args, state);
             case "type" -> handleType(player, label, args, state);
             case "sort" -> handleSort(player, label, args, state);
+            case "abandoned" -> handleAbandoned(player, label, args, state);
             case "reset" -> {
                 state.reset();
-                player.sendMessage(plugin.prefix() + " §aSearch, filter, dan sorting direset.");
+                player.sendMessage(plugin.prefix() + " §aSearch, filter, sorting, dan scanner direset.");
                 patrolMenu.open(player, 1);
             }
             default -> sendUsage(player, label);
@@ -130,12 +132,22 @@ public final class PatrolCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        if (state.hasAbandonedScanner() && type == ClaimType.ADMIN) {
+            player.sendMessage(plugin.prefix() + " §cAbandoned Scanner hanya dapat memproses Player Claim.");
+            return;
+        }
+
         state.claimType(type);
         player.sendMessage(plugin.prefix() + " §7Claim type: §f" + type.displayName());
         patrolMenu.open(player, 1);
     }
 
     private void handleSort(Player player, String label, String[] args, PatrolState state) {
+        if (state.hasAbandonedScanner()) {
+            player.sendMessage(plugin.prefix() + " §7Scanner sedang aktif dan sorting dikunci ke §fOldest Offline First§7.");
+            return;
+        }
+
         if (args.length < 2) {
             player.sendMessage(plugin.prefix() + " §7Gunakan: §f/" + label + " sort <world|owner|largest|smallest|id>");
             return;
@@ -152,6 +164,37 @@ public final class PatrolCommand implements CommandExecutor, TabCompleter {
         patrolMenu.open(player, 1);
     }
 
+    private void handleAbandoned(Player player, String label, String[] args, PatrolState state) {
+        if (args.length < 2) {
+            state.abandonedDays(30);
+            state.claimType(ClaimType.PLAYER);
+            player.sendMessage(plugin.prefix() + " §cAbandoned Scanner aktif §7dengan threshold §f30 hari§7.");
+            patrolMenu.open(player, 1);
+            return;
+        }
+
+        String value = args[1].toLowerCase(Locale.ROOT);
+        if (value.equals("off") || value.equals("clear") || value.equals("disable")) {
+            state.abandonedDays(0);
+            player.sendMessage(plugin.prefix() + " §aAbandoned Scanner dimatikan.");
+            patrolMenu.open(player, 1);
+            return;
+        }
+
+        Integer days = DurationParser.parseDays(value);
+        if (days == null) {
+            player.sendMessage(plugin.prefix() + " §cThreshold tidak valid. Contoh: §f7d, 30d, 60d, 90d, 2w§c.");
+            player.sendMessage(plugin.prefix() + " §7Rentang custom: §f1-3650 hari§7.");
+            return;
+        }
+
+        state.abandonedDays(days);
+        state.claimType(ClaimType.PLAYER);
+        player.sendMessage(plugin.prefix() + " §cAbandoned Scanner aktif §7untuk owner offline §f" + days + "+ hari§7.");
+        player.sendMessage(plugin.prefix() + " §8Owner online dan last-seen unknown tidak dimasukkan.");
+        patrolMenu.open(player, 1);
+    }
+
     private void sendUsage(Player player, String label) {
         player.sendMessage(plugin.prefix() + " §fCdrGPPatrol v" + plugin.getPluginMeta().getVersion());
         player.sendMessage("§7/" + label + " [page] §8- §fBuka claim browser");
@@ -159,6 +202,7 @@ public final class PatrolCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§7/" + label + " world <world|all> §8- §fFilter world");
         player.sendMessage("§7/" + label + " type <all|player|admin> §8- §fFilter tipe claim");
         player.sendMessage("§7/" + label + " sort <world|owner|largest|smallest|id> §8- §fSorting");
+        player.sendMessage("§7/" + label + " abandoned [7d|30d|60d|90d|custom|off] §8- §fScan abandoned claim");
         player.sendMessage("§7/" + label + " reset §8- §fReset semua filter");
     }
 
@@ -189,6 +233,7 @@ public final class PatrolCommand implements CommandExecutor, TabCompleter {
                 }
                 case "type" -> matching(List.of("all", "player", "admin"), args[1]);
                 case "sort" -> matching(List.of("world", "owner", "largest", "smallest", "id"), args[1]);
+                case "abandoned" -> matching(List.of("7d", "30d", "60d", "90d", "2w", "off"), args[1]);
                 default -> List.of();
             };
         }
