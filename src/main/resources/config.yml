@@ -1,5 +1,7 @@
 prefix: "&8[&bGP Patrol&8]&r"
 menu-title: "&8GP Patrol"
+inspector-title: "&8Claim Inspector"
+trust-title: "&8Claim Trust"
 
 teleport:
   # Maximum horizontal distance from the claim center checked when the exact
