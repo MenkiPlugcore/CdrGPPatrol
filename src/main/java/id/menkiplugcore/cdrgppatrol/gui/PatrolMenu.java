@@ -165,7 +165,8 @@ public final class PatrolMenu {
         lore.add("&7Ukuran: &f" + claim.getWidth() + " x " + claim.getHeight());
         lore.add("&7Area: &f" + claim.getArea() + " blocks");
         lore.add("");
-        lore.add("&eKlik untuk teleport");
+        lore.add("&eKlik kiri &7untuk teleport");
+        lore.add("&bKlik kanan &7untuk inspect claim");
 
         Material icon = claim.isAdminClaim() ? Material.GOLD_BLOCK : Material.GRASS_BLOCK;
         return item(icon, claim.isAdminClaim() ? "&6Admin Claim" : "&a" + owner, lore);
