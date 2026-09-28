@@ -1,0 +1,8 @@
+prefix: "&8[&bGP Patrol&8]&r"
+menu-title: "&8GP Patrol"
+
+teleport:
+  # Maximum horizontal distance from the claim center checked when the exact
+  # center is unsafe. The search always stays inside the claim boundaries.
+  search-radius: 12
+  reject-hazards: true

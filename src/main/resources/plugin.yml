@@ -1,0 +1,22 @@
+name: CdrGPPatrol
+version: '1.0.0'
+main: id.menkiplugcore.cdrgppatrol.CdrGPPatrol
+api-version: '1.21.10'
+author: MenkiPlugcore
+description: Administrative claim browser and patrol addon for GriefPrevention.
+depend: [GriefPrevention]
+
+commands:
+  gppatrol:
+    description: Open the GriefPrevention claim patrol menu.
+    usage: /gppatrol [page]
+    permission: cdrgppatrol.admin
+  gppatroldebug:
+    description: Show GriefPrevention claim diagnostics.
+    usage: /gppatroldebug
+    permission: cdrgppatrol.admin
+
+permissions:
+  cdrgppatrol.admin:
+    description: Allows access to CdrGPPatrol commands and GUI.
+    default: op
