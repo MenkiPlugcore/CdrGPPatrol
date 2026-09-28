@@ -5,6 +5,7 @@ import id.menkiplugcore.cdrgppatrol.command.PatrolDebugCommand;
 import id.menkiplugcore.cdrgppatrol.gui.PatrolMenu;
 import id.menkiplugcore.cdrgppatrol.listener.PatrolMenuListener;
 import id.menkiplugcore.cdrgppatrol.service.ClaimService;
+import id.menkiplugcore.cdrgppatrol.service.PatrolSessionService;
 import id.menkiplugcore.cdrgppatrol.service.TeleportService;
 import id.menkiplugcore.cdrgppatrol.util.Colors;
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
@@ -13,6 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CdrGPPatrol extends JavaPlugin {
     private ClaimService claimService;
+    private PatrolSessionService sessionService;
     private TeleportService teleportService;
     private PatrolMenu patrolMenu;
 
@@ -27,8 +29,9 @@ public final class CdrGPPatrol extends JavaPlugin {
         }
 
         this.claimService = new ClaimService();
+        this.sessionService = new PatrolSessionService();
         this.teleportService = new TeleportService(this, claimService);
-        this.patrolMenu = new PatrolMenu(this, claimService);
+        this.patrolMenu = new PatrolMenu(this, claimService, sessionService);
 
         PluginCommand patrolCommand = getCommand("gppatrol");
         PluginCommand debugCommand = getCommand("gppatroldebug");
@@ -38,14 +41,24 @@ public final class CdrGPPatrol extends JavaPlugin {
             return;
         }
 
-        patrolCommand.setExecutor(new PatrolCommand(patrolMenu));
+        PatrolCommand patrolExecutor = new PatrolCommand(this, patrolMenu, claimService, sessionService);
+        patrolCommand.setExecutor(patrolExecutor);
+        patrolCommand.setTabCompleter(patrolExecutor);
         debugCommand.setExecutor(new PatrolDebugCommand(this, claimService));
+
         getServer().getPluginManager().registerEvents(
-                new PatrolMenuListener(patrolMenu, teleportService), this
+                new PatrolMenuListener(this, patrolMenu, teleportService, claimService, sessionService), this
         );
 
         getLogger().info("CdrGPPatrol v" + getPluginMeta().getVersion()
                 + " enabled with GriefPrevention " + GriefPrevention.instance.getPluginMeta().getVersion() + ".");
+    }
+
+    @Override
+    public void onDisable() {
+        if (sessionService != null) {
+            sessionService.clear();
+        }
     }
 
     public String prefix() {

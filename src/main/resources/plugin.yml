@@ -1,5 +1,5 @@
 name: CdrGPPatrol
-version: '1.0.0'
+version: '1.1.0'
 main: id.menkiplugcore.cdrgppatrol.CdrGPPatrol
 api-version: '1.21.10'
 author: MenkiPlugcore
@@ -8,8 +8,8 @@ depend: [GriefPrevention]
 
 commands:
   gppatrol:
-    description: Open the GriefPrevention claim patrol menu.
-    usage: /gppatrol [page]
+    description: Browse, search, filter, and sort GriefPrevention claims.
+    usage: /gppatrol [page|search|world|type|sort|reset]
     permission: cdrgppatrol.admin
   gppatroldebug:
     description: Show GriefPrevention claim diagnostics.
